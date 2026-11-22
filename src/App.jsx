@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import AOS from 'aos'
-import { FiEye, FiEyeOff, FiLogOut, FiUser } from 'react-icons/fi'
+import { FiEye, FiEyeOff } from 'react-icons/fi'
+import Platform from './Platform.jsx'
 
 const API_URL = (
   import.meta.env.VITE_API_URL ||
@@ -9,10 +10,11 @@ const API_URL = (
 
 async function api(path, options = {}) {
   const token = localStorage.getItem('session_token')
+  const isForm = typeof FormData !== 'undefined' && options.body instanceof FormData
   const response = await fetch(`${API_URL}${path}`, {
     ...options,
     headers: {
-      'Content-Type': 'application/json',
+      ...(!isForm ? { 'Content-Type': 'application/json' } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options.headers,
     },
@@ -116,7 +118,7 @@ function App() {
     return <AccountCompletion onComplete={(user) => { setAuth(user); setNeedsCompletion(false) }} onLogout={logout} />
   }
 
-  return <Dashboard auth={auth} onLogout={logout} onAuthUpdate={setAuth} />
+  return <Platform auth={auth} api={api} onLogout={logout} onAuthUpdate={setAuth} />
 }
 
 function AccountCompletion({ onComplete, onLogout }) {
@@ -330,73 +332,6 @@ function BrowserAuth({ onAuth }) {
               : 'Hisobingiz bormi? Kiring'}
           </button>
         </div>
-      </section>
-    </main>
-  )
-}
-
-function Dashboard({ auth, onLogout, onAuthUpdate }) {
-  const [notice, setNotice] = useState('')
-  const [linkUrl, setLinkUrl] = useState('')
-  const [busy, setBusy] = useState(false)
-  const connectTelegram = async () => {
-    setNotice('')
-    setBusy(true)
-    try {
-      const result = await api('/api/account/telegram/link', { method: 'POST' })
-      setLinkUrl(result.url)
-      setNotice('Telegram’da botdagi havolani oching. Ulangandan so‘ng holatni yangilang.')
-    } catch (reason) { setNotice(reason.message) } finally { setBusy(false) }
-  }
-  const disconnectTelegram = async () => {
-    setBusy(true)
-    try {
-      await api('/api/account/telegram/link', { method: 'DELETE' })
-      const result = await api('/api/auth/me')
-      onAuthUpdate(result.user)
-      setNotice('Telegram hisobi uzildi.')
-    } catch (reason) { setNotice(reason.message) } finally { setBusy(false) }
-  }
-  const refreshProfile = async () => {
-    setBusy(true)
-    try { const result = await api('/api/auth/me'); onAuthUpdate(result.user); setNotice('Hisob holati yangilandi.') }
-    catch (reason) { setNotice(reason.message) } finally { setBusy(false) }
-  }
-  return (
-    <main className="min-h-screen bg-slate-50 px-5 py-8">
-      <section className="mx-auto max-w-lg rounded-3xl bg-white p-6 shadow-[0_20px_50px_rgba(15,23,42,0.06)]">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-indigo-500">
-              {auth.telegram_id ? 'Telegram' : 'Brauzer'}
-            </p>
-            <div className="mt-1 flex items-center gap-2">
-              <FiUser className="text-slate-400" size={18} aria-hidden="true" />
-              <h1 className="text-xl font-bold text-slate-900">
-                {auth.first_name || 'Foydalanuvchi'}
-              </h1>
-            </div>
-          </div>
-          <button
-            className="flex h-10 items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
-            onClick={onLogout}
-            type="button"
-          >
-            <FiLogOut size={16} aria-hidden="true" />
-            <span>Chiqish</span>
-          </button>
-        </div>
-      </section>
-      <section className="mx-auto mt-4 max-w-lg rounded-3xl bg-white p-6 shadow-[0_20px_50px_rgba(15,23,42,0.06)]">
-        <h2 className="font-semibold text-slate-900">Profil va ulanishlar</h2>
-        <p className="mt-2 text-sm text-slate-600">Email: {auth.email || 'Sozlanmagan'}</p>
-        <p className="mt-1 text-sm text-slate-600">Telegram: {auth.telegram_id ? 'Ulangan' : 'Ulanmagan'}</p>
-        <div className="mt-4 flex flex-wrap gap-2">
-          {auth.telegram_id ? <button disabled={busy} onClick={disconnectTelegram} className="rounded-xl border px-4 py-2 text-sm">Telegramni uzish</button> : <button disabled={busy} onClick={connectTelegram} className="rounded-xl bg-indigo-600 px-4 py-2 text-sm text-white">Telegramni ulash</button>}
-          <button disabled={busy} onClick={refreshProfile} className="rounded-xl border px-4 py-2 text-sm">Holatni yangilash</button>
-        </div>
-        {linkUrl && <a href={linkUrl} target="_blank" rel="noreferrer" className="mt-3 inline-block text-sm font-semibold text-indigo-600">Botda ulanishni yakunlash</a>}
-        {notice && <p role="status" className="mt-3 text-sm text-slate-600">{notice}</p>}
       </section>
     </main>
   )
