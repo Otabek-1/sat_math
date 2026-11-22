@@ -2,7 +2,10 @@ import { useEffect, useState } from 'react'
 import AOS from 'aos'
 import { FiEye, FiEyeOff, FiLogOut, FiUser } from 'react-icons/fi'
 
-const API_URL = import.meta.env.VITE_API_URL || ''
+const API_URL = (
+  import.meta.env.VITE_API_URL ||
+  (import.meta.env.DEV ? '' : 'https://sat-math-server.onrender.com')
+).replace(/\/$/, '')
 
 async function api(path, options = {}) {
   const token = localStorage.getItem('session_token')
@@ -22,7 +25,7 @@ async function api(path, options = {}) {
     try {
       data = JSON.parse(text)
     } catch {
-      throw new Error('Serverdan JSON javob olinmadi')
+      throw new Error(`API JSON javob qaytarmadi (HTTP ${response.status}). VITE_API_URL va backend deployini tekshiring.`)
     }
   }
 
