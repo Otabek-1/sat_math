@@ -62,7 +62,7 @@ function Platform({ auth, api, onLogout, onAuthUpdate }) {
         setGroups(groupRows)
         setQuestions(questionRows)
       }
-      if (nextTab === 'questions') setTaxonomies(await api('/api/taxonomies'))
+      if (['questions', 'assignments', 'mocks'].includes(nextTab)) setTaxonomies(await api('/api/taxonomies'))
       if (nextTab === 'profile') {
         const resultMe = await api('/api/auth/me')
         onAuthUpdate(resultMe.user)
@@ -114,8 +114,8 @@ function Platform({ auth, api, onLogout, onAuthUpdate }) {
         {tab === 'home' && <Home data={pagedData} summary={summary} onGo={go} />}
         {tab === 'groups' && <Groups data={pagedData} groups={groups} api={api} auth={auth} act={act} />}
         {tab === 'questions' && <Questions data={pagedData} totalCount={data.length} taxonomies={taxonomies} api={api} act={act} />}
-        {tab === 'assignments' && <Assignments data={pagedData} groups={groups} questions={questions} auth={auth} api={api} act={act} />}
-        {tab === 'mocks' && <Mocks data={pagedData} groups={groups} questions={questions} auth={auth} api={api} act={act} />}
+        {tab === 'assignments' && <Assignments data={pagedData} groups={groups} questions={questions} taxonomies={taxonomies} auth={auth} api={api} act={act} />}
+        {tab === 'mocks' && <Mocks data={pagedData} groups={groups} questions={questions} taxonomies={taxonomies} auth={auth} api={api} act={act} />}
         {tab === 'lessons' && <Lessons data={pagedData} groups={groups} auth={auth} api={api} act={act} />}
         {tab === 'posts' && <Posts data={pagedData} groups={groups} api={api} act={act} />}
         {tab === 'resources' && <Resources groups={groups} data={pagedData} auth={auth} api={api} act={act} />}
@@ -301,21 +301,195 @@ function Groups({ data, groups, api, auth, act }) {
 }
 
 function Questions({ data, totalCount, taxonomies, api, act }) {
-  const [kind, setKind] = useState('mcq'); const [section, setSection] = useState('math'); const [prompt, setPrompt] = useState(''); const [choices, setChoices] = useState(''); const [answer, setAnswer] = useState(''); const [explanation, setExplanation] = useState(''); const [image, setImage] = useState(''); const [taxonomy, setTaxonomy] = useState(''); const [editing, setEditing] = useState(null)
-  const reset = () => { setEditing(null); setKind('mcq'); setSection('math'); setPrompt(''); setChoices(''); setAnswer(''); setExplanation(''); setImage(''); setTaxonomy('') }
-  const chooseEdit = (q) => { setEditing(q.id); setKind(q.kind); setSection(q.section); setPrompt(q.prompt); setChoices((q.choices || []).join('\n')); setAnswer(q.answer); setExplanation(q.explanation || ''); setImage(q.image_url || ''); setTaxonomy(q.taxonomy_id || '') }
-  const save = (e) => { e.preventDefault(); const payload = { kind, section, prompt, choices: kind === 'mcq' ? choices.split('\n').map((x) => x.trim()).filter(Boolean) : [], answer, explanation, image_url: image || null, taxonomy_id: taxonomy || null }; act(async () => { await api(editing ? `/api/questions/${editing}` : '/api/questions', { method: editing ? 'PATCH' : 'POST', body: JSON.stringify(payload) }); reset() }, editing ? 'Savol yangilandi.' : 'Savol bankka qo‘shildi.') }
-  return <div className="grid gap-4 lg:grid-cols-2"><Panel title={`Savollar (${totalCount})`}>{data.length ? <div className="max-h-[70vh] space-y-3 overflow-auto">{data.map((q) => <article className="rounded-xl border p-4" key={q.id}><div className="flex justify-between gap-2"><p className="mb-1 text-xs font-semibold uppercase text-indigo-600">{q.section} · {q.kind} · {q.domain || 'Tasniflanmagan'}</p><button className="text-sm text-indigo-600" onClick={() => chooseEdit(q)}>Tahrirlash</button></div><MathText className="font-medium">{q.prompt}</MathText>{q.image_url && <img src={q.image_url} alt="Savol rasmi" className="mt-3 max-h-52 rounded-lg object-contain" onError={(e) => { e.currentTarget.alt = 'Rasmni yuklab bo‘lmadi'; e.currentTarget.style.display = 'none' }} />}{q.choices?.length > 0 && <ul className="mt-2 list-inside list-disc text-sm text-slate-600">{q.choices.map((x, index) => <li key={`${index}-${x}`}><MathText>{x}</MathText></li>)}</ul>}<div className="mt-2 flex items-start gap-1 text-xs text-slate-500"><span>Javob:</span><MathText>{q.answer}</MathText></div>{q.explanation && <MathText className="mt-1 text-sm text-slate-500">{q.explanation}</MathText>}</article>)}</div> : <Empty>Savollar banki bo‘sh. Haqiqiy SAT savollari avtomatik yaratilmaydi.</Empty>}</Panel><Panel title={editing ? 'Savolni tahrirlash' : 'Savol yaratish'}><form onSubmit={save} className="space-y-3"><div className="grid grid-cols-2 gap-2"><select className={input} value={kind} onChange={(e) => setKind(e.target.value)}><option value="mcq">MCQ</option><option value="spr">SPR</option></select><select className={input} value={section} onChange={(e) => setSection(e.target.value)}><option value="math">Math</option><option value="reading_writing">Reading/Writing</option></select></div><MathEditor required label="Savol matni" placeholder="Masalan: Agar $x=2$ bo‘lsa, $x^2+1$ ni toping." value={prompt} onChange={setPrompt} rows={5} />{kind === 'mcq' && <MathEditor required label="Variantlar — har qatorda bittadan" placeholder={'$x=1$\n$x=2$\n$x=3$\n$x=4$'} value={choices} onChange={setChoices} rows={5} />}<MathEditor required label="To‘g‘ri javob" placeholder="Masalan: $5$ yoki 5" value={answer} onChange={setAnswer} rows={2} /><MathEditor label="Izoh" placeholder="Yechim va tushuntirish" value={explanation} onChange={setExplanation} rows={4} /><input className={input} type="url" placeholder="HTTPS rasm manzili (ixtiyoriy)" value={image} onChange={(e) => setImage(e.target.value)} /><select className={input} value={taxonomy} onChange={(e) => setTaxonomy(e.target.value)}><option value="">Taksonomiya yo‘q</option>{taxonomies.filter((t) => t.section === section).map((t) => <option value={t.id} key={t.id}>{t.domain} / {t.skill}</option>)}</select><div className="flex gap-2"><button className={button}>{editing ? 'O‘zgarishlarni saqlash' : 'Savolni saqlash'}</button>{editing && <button type="button" className={secondary} onClick={reset}>Bekor qilish</button>}</div></form></Panel></div>
+  const [kind, setKind] = useState('mcq'); const [section, setSection] = useState('math'); const [prompt, setPrompt] = useState(''); const [choices, setChoices] = useState(''); const [answer, setAnswer] = useState(''); const [explanation, setExplanation] = useState(''); const [image, setImage] = useState(''); const [taxonomy, setTaxonomy] = useState(''); const [difficulty, setDifficulty] = useState('medium'); const [editing, setEditing] = useState(null)
+  const reset = () => { setEditing(null); setKind('mcq'); setSection('math'); setPrompt(''); setChoices(''); setAnswer(''); setExplanation(''); setImage(''); setTaxonomy(''); setDifficulty('medium') }
+  const chooseEdit = (q) => { setEditing(q.id); setKind(q.kind); setSection(q.section); setPrompt(q.prompt); setChoices((q.choices || []).join('\n')); setAnswer(q.answer); setExplanation(q.explanation || ''); setImage(q.image_url || ''); setTaxonomy(q.taxonomy_id || ''); setDifficulty(q.difficulty || 'medium') }
+  const save = (e) => { e.preventDefault(); const payload = { kind, section, prompt, choices: kind === 'mcq' ? choices.split('\n').map((x) => x.trim()).filter(Boolean) : [], answer, explanation, image_url: image || null, taxonomy_id: taxonomy || null, difficulty }; act(async () => { await api(editing ? `/api/questions/${editing}` : '/api/questions', { method: editing ? 'PATCH' : 'POST', body: JSON.stringify(payload) }); reset() }, editing ? 'Savol yangilandi.' : 'Savol bankka qo‘shildi.') }
+  return (
+    <div className="grid gap-4 lg:grid-cols-2">
+      <Panel title={`Savollar (${totalCount})`}>
+        {data.length ? (
+          <div className="max-h-[70vh] space-y-3 overflow-auto">
+            {data.map((q) => (
+              <article className="rounded-xl border p-4" key={q.id}>
+                <div className="flex justify-between gap-2">
+                  <p className="mb-1 text-xs font-semibold uppercase text-indigo-600">
+                    {q.section} · {q.kind} · {q.difficulty || 'medium'} · {q.domain || 'Tasniflanmagan'}
+                  </p>
+                  <button className="text-sm text-indigo-600" onClick={() => chooseEdit(q)}>Tahrirlash</button>
+                </div>
+                <MathText className="font-medium">{q.prompt}</MathText>
+                {q.image_url && <img src={q.image_url} alt="Savol rasmi" className="mt-3 max-h-52 rounded-lg object-contain" />}
+                {q.choices?.length > 0 && (
+                  <ul className="mt-2 list-inside list-disc text-sm text-slate-600">
+                    {q.choices.map((x, index) => <li key={`${index}-${x}`}><MathText>{x}</MathText></li>)}
+                  </ul>
+                )}
+                <div className="mt-2 flex items-start gap-1 text-xs text-slate-500"><span>Javob:</span><MathText>{q.answer}</MathText></div>
+                {q.explanation && <MathText className="mt-1 text-sm text-slate-500">{q.explanation}</MathText>}
+              </article>
+            ))}
+          </div>
+        ) : <Empty>Savollar banki bo‘sh.</Empty>}
+      </Panel>
+      <Panel title={editing ? 'Savolni tahrirlash' : 'Savol yaratish'}>
+        <form onSubmit={save} className="space-y-3">
+          <div className="grid grid-cols-2 gap-2">
+            <select className={input} value={kind} onChange={(e) => setKind(e.target.value)}><option value="mcq">MCQ</option><option value="spr">SPR</option></select>
+            <select className={input} value={section} onChange={(e) => setSection(e.target.value)}><option value="math">Math</option><option value="reading_writing">Reading/Writing</option></select>
+          </div>
+          <select className={input} value={difficulty} onChange={(e) => setDifficulty(e.target.value)}>
+            <option value="easy">Easy / Oson</option>
+            <option value="medium">Medium / O‘rtacha</option>
+            <option value="hard">Hard / Murakkab</option>
+          </select>
+          <MathEditor required label="Savol matni" placeholder="Masalan: Agar $x=2$ bo‘lsa, $x^2+1$ ni toping." value={prompt} onChange={setPrompt} rows={5} />
+          {kind === 'mcq' && <MathEditor required label="Variantlar — har qatorda bittadan" placeholder={'$x=1$\n$x=2$\n$x=3$\n$x=4$'} value={choices} onChange={setChoices} rows={5} />}
+          <MathEditor required label="To‘g‘ri javob" placeholder="Masalan: $5$ yoki 5" value={answer} onChange={setAnswer} rows={2} />
+          <MathEditor label="Izoh" placeholder="Yechim va tushuntirish" value={explanation} onChange={setExplanation} rows={4} />
+          <input className={input} type="url" placeholder="HTTPS rasm manzili (ixtiyoriy)" value={image} onChange={(e) => setImage(e.target.value)} />
+          <select className={input} value={taxonomy} onChange={(e) => setTaxonomy(e.target.value)}>
+            <option value="">Taksonomiya yo‘q</option>
+            {taxonomies.filter((t) => t.section === section).map((t) => <option value={t.id} key={t.id}>{t.domain} / {t.skill}</option>)}
+          </select>
+          <div className="flex gap-2">
+            <button className={button}>{editing ? 'O‘zgarishlarni saqlash' : 'Savolni saqlash'}</button>
+            {editing && <button type="button" className={secondary} onClick={reset}>Bekor qilish</button>}
+          </div>
+        </form>
+      </Panel>
+    </div>
+  )
 }
 
-function Assignments({ data, groups, questions, auth, api, act }) {
-  const [group, setGroup] = useState(''); const [title, setTitle] = useState(''); const [description, setDescription] = useState(''); const [deadline, setDeadline] = useState(''); const [selectedQs, setSelectedQs] = useState([]); const [opened, setOpened] = useState(null); const [items, setItems] = useState([]); const [answers, setAnswers] = useState({}); const [result, setResult] = useState(null); const [editing, setEditing] = useState(null); const [submissions, setSubmissions] = useState([])
-  const create = (e) => { e.preventDefault(); const payload = { group_id: group, title, description, question_ids: selectedQs, deadline: deadline ? new Date(deadline).toISOString() : null }; act(() => api(editing ? `/api/assignments/${editing}` : '/api/assignments', { method: editing ? 'PATCH' : 'POST', body: JSON.stringify(payload) }), editing ? 'Vazifa saqlandi.' : 'Qoralama vazifa yaratildi.') }
-  const editAssignment = (a) => { setEditing(a.id); setGroup(a.group_id); setTitle(a.title); setDescription(a.description); setDeadline(a.deadline ? new Date(a.deadline).toISOString().slice(0,16) : ''); setSelectedQs(a.question_ids || []) }
+function SelectionRules({ taxonomies, rules, setRules }) {
+  const update = (index, patch) => setRules(rules.map((rule, i) => i === index ? { ...rule, ...patch } : rule))
+  return (
+    <fieldset className="space-y-2 rounded-xl border p-3">
+      <legend className="px-1 text-xs font-semibold text-slate-600">Tavsiya qilingan savollarni mavzu/difficulty bo‘yicha random tanlash</legend>
+      {rules.map((rule, index) => (
+        <div className="grid gap-2 rounded-lg bg-slate-50 p-2 sm:grid-cols-5" key={index}>
+          <input className={input} type="number" min="1" max="100" value={rule.count} onChange={(e) => update(index, { count: Number(e.target.value) })} aria-label="Savollar soni" />
+          <select className={input} value={rule.section} onChange={(e) => update(index, { section: e.target.value, taxonomy_id: '' })}>
+            <option value="math">Math</option><option value="reading_writing">Reading/Writing</option>
+          </select>
+          <select className={input} value={rule.difficulty} onChange={(e) => update(index, { difficulty: e.target.value })}>
+            <option value="easy">Easy</option><option value="medium">Medium</option><option value="hard">Hard</option>
+          </select>
+          <select className={input} value={rule.kind || ''} onChange={(e) => update(index, { kind: e.target.value || null })}>
+            <option value="">Barcha turi</option><option value="mcq">MCQ</option><option value="spr">SPR</option>
+          </select>
+          <select className={input} value={rule.taxonomy_id || ''} onChange={(e) => update(index, { taxonomy_id: e.target.value || null })}>
+            <option value="">Barcha mavzu</option>
+            {taxonomies.filter((t) => t.section === rule.section).map((t) => <option key={t.id} value={t.id}>{t.domain} / {t.skill}</option>)}
+          </select>
+          <button type="button" className="text-left text-red-600 sm:col-span-5" onClick={() => setRules(rules.filter((_, i) => i !== index))}>Qoidani o‘chirish</button>
+        </div>
+      ))}
+      <button type="button" className={secondary} onClick={() => setRules([...rules, { count: 5, section: 'math', difficulty: 'medium', kind: null, taxonomy_id: null }])}>Mavzu/difficulty qo‘shish</button>
+    </fieldset>
+  )
+}
+
+function Assignments({ data, groups, questions, taxonomies, auth, api, act }) {
+  const [group, setGroup] = useState('')
+  const [title, setTitle] = useState('')
+  const [description, setDescription] = useState('')
+  const [deadline, setDeadline] = useState('')
+  const [selectedQs, setSelectedQs] = useState([])
+  const [selectionRules, setSelectionRules] = useState([])
+  const [opened, setOpened] = useState(null)
+  const [items, setItems] = useState([])
+  const [answers, setAnswers] = useState({})
+  const [result, setResult] = useState(null)
+  const [editing, setEditing] = useState(null)
+  const [submissions, setSubmissions] = useState([])
+
+  const create = (e) => {
+    e.preventDefault()
+    const payload = { group_id: group, title, description, question_ids: selectedQs, selection_rules: selectionRules, deadline: deadline ? new Date(deadline).toISOString() : null }
+    act(() => api(editing ? `/api/assignments/${editing}` : '/api/assignments', { method: editing ? 'PATCH' : 'POST', body: JSON.stringify(payload) }), editing ? 'Vazifa saqlandi.' : 'Qoralama vazifa yaratildi.')
+  }
+  const editAssignment = (a) => {
+    setEditing(a.id); setGroup(a.group_id); setTitle(a.title); setDescription(a.description)
+    setDeadline(a.deadline ? new Date(a.deadline).toISOString().slice(0,16) : '')
+    setSelectedQs(a.question_ids || []); setSelectionRules(a.selection_rules || [])
+  }
   const review = (id) => act(async () => setSubmissions(await api(`/api/assignments/${id}/submissions`)), 'Topshiriqlar yuklandi.')
-  const open = async (item) => { try { setOpened(item); setItems(await api(`/api/assignments/${item.id}/questions`)); setAnswers({}); setResult(null) } catch (e) { setResult({ error: e.message }) } }
+  const open = async (item) => {
+    try { setOpened(item); setItems(await api(`/api/assignments/${item.id}/questions`)); setAnswers({}); setResult(null) }
+    catch (e) { setResult({ error: e.message }) }
+  }
   const submit = () => act(async () => setResult(await api(`/api/assignments/${opened.id}/submit`, { method: 'POST', body: JSON.stringify({ answers }) })), 'Vazifa topshirildi.')
-  return <div className="grid gap-4 lg:grid-cols-2"><Panel title="Vazifalar">{data.length ? <div className="space-y-3">{data.map((a) => <article className="rounded-xl border p-4" key={a.id}><div className="flex justify-between gap-3"><div><p className="font-semibold">{a.title}</p><p className="text-sm text-slate-500">{a.group_name} · {a.status} {a.deadline ? `· ${new Date(a.deadline).toLocaleString()}` : ''}</p><p className="text-xs text-slate-500">Topshiriqlar: {a.submission_count ?? 0}</p>{a.my_submission && <p className="text-xs font-medium text-emerald-700">Sizning natijangiz: {a.my_submission.raw_score}/{a.my_submission.total_questions}</p>}</div>{auth.role === 'student' ? <button className={button} onClick={() => open(a)}>Ochish</button> : <div className="flex flex-wrap gap-2">{a.status === 'draft' && <><button className={secondary} onClick={() => editAssignment(a)}>Tahrirlash</button><button className={button} onClick={() => act(() => api(`/api/assignments/${a.id}/publish`, { method: 'POST' }), 'Vazifa e’lon qilindi.')}>E’lon qilish</button></>}<button className={secondary} onClick={() => review(a.id)}>Natijalar</button></div>}</div></article>)}</div> : <Empty>Vazifalar yo‘q.</Empty>}{staff.includes(auth.role) && submissions.length > 0 && <div className="mt-4 border-t pt-3"><h3 className="mb-2 font-semibold">Topshiriqlar natijalari</h3><PaginatedItems items={submissions} render={(items) => items.map((s) => <p key={s.id} className="border-b py-2 text-sm">{s.first_name} | {s.student_id} | {s.raw_score}/{s.total_questions} | {new Date(s.submitted_at).toLocaleString()}</p>)} /></div>}</Panel>{staff.includes(auth.role) ? <Panel title={editing ? 'Qoralama vazifani tahrirlash' : 'Qoralama vazifa'}><form onSubmit={create} className="space-y-3"><select className={input} required value={group} onChange={(e) => setGroup(e.target.value)}><option value="">Guruh</option>{groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}</select><input className={input} required placeholder="Nomi" value={title} onChange={(e) => setTitle(e.target.value)} /><MathEditor label="Tavsif" placeholder="Matn yoki LaTeX formulasi" value={description} onChange={setDescription} rows={3} /><input className={input} type="datetime-local" value={deadline} onChange={(e) => setDeadline(e.target.value)} /><QuestionPicker questions={questions} selected={selectedQs} setSelected={setSelectedQs} /><div className="flex gap-2"><button className={button}>Qoralama saqlash</button>{editing && <button className={secondary} type="button" onClick={() => { setEditing(null);setTitle('');setDescription('');setGroup('');setSelectedQs([]);setDeadline('') }}>Bekor qilish</button>}</div></form></Panel> : opened && <Panel title={opened.title}><div className="space-y-4"><PaginatedItems items={items} pageSize={5} render={(pageItems, start) => pageItems.map((q, index) => <QuestionAnswer key={q.id} q={q} index={start + index} answers={answers} setAnswers={setAnswers} />)} />{result?.error && <p className="text-red-600">{result.error}</p>}{result?.raw_score !== undefined && <p className="rounded-xl bg-emerald-50 p-3">Natija: {result.raw_score}/{result.total_questions} · Math {result.raw_math}, Reading/Writing {result.raw_reading_writing}</p>}<button onClick={submit} className={button}>Javoblarni topshirish</button></div></Panel>}</div>
+
+  return (
+    <div className="grid gap-4 lg:grid-cols-2">
+      <Panel title="Vazifalar">
+        {data.length ? (
+          <div className="space-y-3">
+            {data.map((a) => (
+              <article className="rounded-xl border p-4" key={a.id}>
+                <div className="flex justify-between gap-3">
+                  <div>
+                    <p className="font-semibold">{a.title}</p>
+                    <p className="text-sm text-slate-500">{a.group_name} · {a.status} {a.deadline ? `· ${new Date(a.deadline).toLocaleString()}` : ''}</p>
+                    <p className="text-xs text-slate-500">Topshiriqlar: {a.submission_count ?? 0}</p>
+                    {a.my_submission && <p className="text-xs font-medium text-emerald-700">Sizning natijangiz: {a.my_submission.raw_score}/{a.my_submission.total_questions}</p>}
+                  </div>
+                  {auth.role === 'student' ? (
+                    <button className={button} onClick={() => open(a)}>Ochish</button>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {a.status === 'draft' && <>
+                        <button className={secondary} onClick={() => editAssignment(a)}>Tahrirlash</button>
+                        <button className={button} onClick={() => act(() => api(`/api/assignments/${a.id}/publish`, { method: 'POST' }), 'Vazifa e’lon qilindi.')}>E’lon qilish</button>
+                      </>}
+                      <button className={secondary} onClick={() => review(a.id)}>Natijalar</button>
+                    </div>
+                  )}
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : <Empty>Vazifalar yo‘q.</Empty>}
+        {staff.includes(auth.role) && submissions.length > 0 && (
+          <div className="mt-4 border-t pt-3">
+            <h3 className="mb-2 font-semibold">Topshiriqlar natijalari</h3>
+            <PaginatedItems items={submissions} render={(items) => items.map((s) => (
+              <p key={s.id} className="border-b py-2 text-sm">{s.first_name} | {s.student_id} | {s.raw_score}/{s.total_questions} | {new Date(s.submitted_at).toLocaleString()}</p>
+            ))} />
+          </div>
+        )}
+      </Panel>
+      {staff.includes(auth.role) ? (
+        <Panel title={editing ? 'Qoralama vazifani tahrirlash' : 'Qoralama vazifa'}>
+          <form onSubmit={create} className="space-y-3">
+            <select className={input} required value={group} onChange={(e) => setGroup(e.target.value)}>
+              <option value="">Guruh</option>{groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+            </select>
+            <input className={input} required placeholder="Nomi" value={title} onChange={(e) => setTitle(e.target.value)} />
+            <MathEditor label="Tavsif" placeholder="Matn yoki LaTeX formulasi" value={description} onChange={setDescription} rows={3} />
+            <input className={input} type="datetime-local" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
+            <QuestionPicker questions={questions} selected={selectedQs} setSelected={setSelectedQs} />
+            <SelectionRules taxonomies={taxonomies} rules={selectionRules} setRules={setSelectionRules} />
+            <div className="flex gap-2">
+              <button className={button}>Qoralama saqlash</button>
+              {editing && <button className={secondary} type="button" onClick={() => { setEditing(null); setTitle(''); setDescription(''); setGroup(''); setSelectedQs([]); setSelectionRules([]); setDeadline('') }}>Bekor qilish</button>}
+            </div>
+          </form>
+        </Panel>
+      ) : opened && (
+        <Panel title={opened.title}>
+          <div className="space-y-4">
+            <PaginatedItems items={items} pageSize={5} render={(pageItems, start) => pageItems.map((q, index) => <QuestionAnswer key={q.id} q={q} index={start + index} answers={answers} setAnswers={setAnswers} />)} />
+            {result?.error && <p className="text-red-600">{result.error}</p>}
+            {result?.raw_score !== undefined && <p className="rounded-xl bg-emerald-50 p-3">Natija: {result.raw_score}/{result.total_questions} · Math {result.raw_math}, Reading/Writing {result.raw_reading_writing}</p>}
+            <button onClick={submit} className={button}>Javoblarni topshirish</button>
+          </div>
+        </Panel>
+      )}
+    </div>
+  )
 }
 
 function QuestionPicker({ questions, selected, setSelected }) {
@@ -326,14 +500,14 @@ function QuestionAnswer({ q, index, answers, setAnswers }) {
   return <article className="rounded-xl border p-3"><MathText className="font-medium">{`${index + 1}. ${q.prompt}`}</MathText>{q.image_url && <img src={q.image_url} alt="Savol rasmi" className="mt-2 max-h-48 object-contain" onError={(e) => { e.currentTarget.style.display = 'none' }} />}{q.kind === 'mcq' ? <div className="mt-2 space-y-1">{q.choices.map((choice, choiceIndex) => <label key={`${choiceIndex}-${choice}`} className="flex gap-2 text-sm"><input type="radio" name={q.id} value={choice} checked={answers[q.id] === choice} onChange={() => setAnswers({ ...answers, [q.id]: choice })} /><MathText>{choice}</MathText></label>)}</div> : <input className={`${input} mt-2`} value={answers[q.id] || ''} onChange={(e) => setAnswers({ ...answers, [q.id]: e.target.value })} placeholder="Javob" />}</article>
 }
 
-function Mocks({ data, groups, questions, auth, api, act }) {
-  const [title, setTitle] = useState(''); const [selectedQs, setSelectedQs] = useState([]); const [selectedGroups, setSelectedGroups] = useState([]); const [studentIds, setStudentIds] = useState(''); const [deadline, setDeadline] = useState(''); const [opened, setOpened] = useState(null); const [items, setItems] = useState([]); const [answers, setAnswers] = useState({}); const [result, setResult] = useState(null); const [newDeadline, setNewDeadline] = useState(''); const [editing, setEditing] = useState(null); const [attempts, setAttempts] = useState([])
-  const create = (e) => { e.preventDefault(); const payload = { title, question_ids: selectedQs, group_ids: selectedGroups, student_ids: studentIds.split(/[\s,]+/).filter(Boolean), deadline: deadline ? new Date(deadline).toISOString() : null }; act(() => api(editing ? `/api/mocks/${editing}` : '/api/mocks', { method: editing ? 'PATCH' : 'POST', body: JSON.stringify(payload) }), editing ? 'Mock sozlamalari saqlandi.' : 'Qoralama mock yaratildi.') }
-  const editMock = (m) => { setEditing(m.id); setTitle(m.title); setSelectedQs(m.question_ids || []); setSelectedGroups(m.group_ids || []); setStudentIds((m.student_ids || []).join('\n')); setDeadline(m.deadline ? new Date(m.deadline).toISOString().slice(0,16) : '') }
+function Mocks({ data, groups, questions, taxonomies, auth, api, act }) {
+  const [title, setTitle] = useState(''); const [selectedQs, setSelectedQs] = useState([]); const [selectionRules, setSelectionRules] = useState([]); const [selectedGroups, setSelectedGroups] = useState([]); const [studentIds, setStudentIds] = useState(''); const [deadline, setDeadline] = useState(''); const [opened, setOpened] = useState(null); const [items, setItems] = useState([]); const [answers, setAnswers] = useState({}); const [result, setResult] = useState(null); const [newDeadline, setNewDeadline] = useState(''); const [editing, setEditing] = useState(null); const [attempts, setAttempts] = useState([])
+  const create = (e) => { e.preventDefault(); const payload = { title, question_ids: selectedQs, selection_rules: selectionRules, group_ids: selectedGroups, student_ids: studentIds.split(/[\s,]+/).filter(Boolean), deadline: deadline ? new Date(deadline).toISOString() : null }; act(() => api(editing ? `/api/mocks/${editing}` : '/api/mocks', { method: editing ? 'PATCH' : 'POST', body: JSON.stringify(payload) }), editing ? 'Mock sozlamalari saqlandi.' : 'Qoralama mock yaratildi.') }
+  const editMock = (m) => { setEditing(m.id); setTitle(m.title); setSelectedQs(m.question_ids || []); setSelectionRules(m.selection_rules || []); setSelectedGroups(m.group_ids || []); setStudentIds((m.student_ids || []).join('\n')); setDeadline(m.deadline ? new Date(m.deadline).toISOString().slice(0,16) : '') }
   const review = (id) => act(async () => setAttempts(await api(`/api/mocks/${id}/results`)), 'Mock natijalari yuklandi.')
   const start = async (m) => { try { setOpened(m); setItems(await api(`/api/mocks/${m.id}/questions`)); setAnswers({}); setResult(null) } catch (e) { setResult({ error: e.message }) } }
   const submit = () => act(async () => setResult(await api(`/api/mocks/${opened.id}/attempts`, { method: 'POST', body: JSON.stringify({ answers }) })), 'Mock natijasi saqlandi.')
-  return <div className="grid gap-4 lg:grid-cols-2"><Panel title="Mock imtihonlar">{data.length ? <div className="space-y-3">{data.map((m) => <article className="rounded-xl border p-4" key={m.id}><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="font-semibold">{m.title}</p><p className="text-sm text-slate-500">{m.status} · Urinishlar: {m.attempt_count ?? '—'}{m.deadline ? ` · ${new Date(m.deadline).toLocaleString()}` : ''}</p>{m.my_latest_attempt && <p className="text-xs text-emerald-700">Oxirgi raw natija: Math {m.my_latest_attempt.raw_math}, Reading/Writing {m.my_latest_attempt.raw_reading_writing}</p>}</div>{auth.role === 'student' ? <button className={button} onClick={() => start(m)}>Boshlash</button> : <div className="flex flex-wrap gap-2">{m.status === 'draft' && <><button className={secondary} onClick={() => editMock(m)}>Tahrirlash</button><button className={button} onClick={() => act(() => api(`/api/mocks/${m.id}/open`, { method: 'POST' }), 'Mock ochildi.')}>Ochish</button></>}{m.status === 'open' && <button className={secondary} onClick={() => act(() => api(`/api/mocks/${m.id}/close`, { method: 'POST' }), 'Mock yopildi.')}>Yopish</button>}{m.status === 'closed' && <><input type="datetime-local" className={input} value={newDeadline} onChange={(e) => setNewDeadline(e.target.value)} /><button className={button} disabled={!newDeadline} onClick={() => act(() => api(`/api/mocks/${m.id}/reopen`, { method: 'POST', body: JSON.stringify({ deadline: new Date(newDeadline).toISOString() }) }), 'Mock yangi muddat bilan ochildi.')}>Qayta ochish</button></>}{<button className={secondary} onClick={() => review(m.id)}>Natijalar</button>}</div>}</div></article>)}</div> : <Empty>Mock imtihonlar yo‘q.</Empty>}{attempts.length > 0 && <div className="mt-4 border-t pt-3"><h3 className="mb-2 font-semibold">Urinishlar</h3><PaginatedItems items={attempts} render={(items) => items.map((a) => <p className="border-b py-2 text-sm" key={a.id}>{a.first_name} | {a.student_id} | urinish {a.attempt_number}: Math {a.raw_math}, Reading/Writing {a.raw_reading_writing}</p>)} /></div>}</Panel>{staff.includes(auth.role) ? <Panel title={editing ? 'Mock qoralamasini tahrirlash' : 'Mock yaratish'}><form onSubmit={create} className="space-y-3"><input className={input} required placeholder="Imtihon nomi" value={title} onChange={(e) => setTitle(e.target.value)} /><input className={input} type="datetime-local" value={deadline} onChange={(e) => setDeadline(e.target.value)} /><QuestionPicker questions={questions} selected={selectedQs} setSelected={setSelectedQs} /><fieldset className="space-y-2"><legend className="text-sm font-semibold">Guruhlar</legend><PaginatedItems items={groups} pageSize={5} render={(items) => items.map((g) => <label key={g.id} className="flex gap-2 text-sm"><input type="checkbox" checked={selectedGroups.includes(g.id)} onChange={(e) => setSelectedGroups(e.target.checked ? [...selectedGroups, g.id] : selectedGroups.filter((id) => id !== g.id))} />{g.name}</label>)} /></fieldset><textarea className={input} placeholder="Alohida o‘quvchilarning ichki user ID’lari (vergul yoki qator bilan)" value={studentIds} onChange={(e) => setStudentIds(e.target.value)} /><div className="flex gap-2"><button className={button}>{editing ? 'Sozlamalarni saqlash' : 'Qoralama saqlash'}</button>{editing && <button className={secondary} type="button" onClick={() => { setEditing(null);setTitle('');setSelectedQs([]);setSelectedGroups([]);setStudentIds('');setDeadline('') }}>Bekor qilish</button>}</div></form></Panel> : opened && <Panel title={opened.title}><div className="space-y-4"><PaginatedItems items={items} pageSize={5} render={(pageItems, start) => pageItems.map((q, i) => <QuestionAnswer key={q.id} q={q} index={start + i} answers={answers} setAnswers={setAnswers} />)} />{result?.error && <p className="text-red-600">{result.error}</p>}{result?.score_label && <div className="rounded-xl bg-emerald-50 p-3">Raw score: Math {result.raw_math}, Reading/Writing {result.raw_reading_writing}. {result.score_label}</div>}<button onClick={submit} className={button}>Imtihonni topshirish</button></div></Panel>}</div>
+  return <div className="grid gap-4 lg:grid-cols-2"><Panel title="Mock imtihonlar">{data.length ? <div className="space-y-3">{data.map((m) => <article className="rounded-xl border p-4" key={m.id}><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="font-semibold">{m.title}</p><p className="text-sm text-slate-500">{m.status} · Urinishlar: {m.attempt_count ?? '—'}{m.deadline ? ` · ${new Date(m.deadline).toLocaleString()}` : ''}</p>{m.my_latest_attempt && <p className="text-xs text-emerald-700">Oxirgi raw natija: Math {m.my_latest_attempt.raw_math}, Reading/Writing {m.my_latest_attempt.raw_reading_writing}</p>}</div>{auth.role === 'student' ? <button className={button} onClick={() => start(m)}>Boshlash</button> : <div className="flex flex-wrap gap-2">{m.status === 'draft' && <><button className={secondary} onClick={() => editMock(m)}>Tahrirlash</button><button className={button} onClick={() => act(() => api(`/api/mocks/${m.id}/open`, { method: 'POST' }), 'Mock ochildi.')}>Ochish</button></>}{m.status === 'open' && <button className={secondary} onClick={() => act(() => api(`/api/mocks/${m.id}/close`, { method: 'POST' }), 'Mock yopildi.')}>Yopish</button>}{m.status === 'closed' && <><input type="datetime-local" className={input} value={newDeadline} onChange={(e) => setNewDeadline(e.target.value)} /><button className={button} disabled={!newDeadline} onClick={() => act(() => api(`/api/mocks/${m.id}/reopen`, { method: 'POST', body: JSON.stringify({ deadline: new Date(newDeadline).toISOString() }) }), 'Mock yangi muddat bilan ochildi.')}>Qayta ochish</button></>}{<button className={secondary} onClick={() => review(m.id)}>Natijalar</button>}</div>}</div></article>)}</div> : <Empty>Mock imtihonlar yo‘q.</Empty>}{attempts.length > 0 && <div className="mt-4 border-t pt-3"><h3 className="mb-2 font-semibold">Urinishlar</h3><PaginatedItems items={attempts} render={(items) => items.map((a) => <p className="border-b py-2 text-sm" key={a.id}>{a.first_name} | {a.student_id} | urinish {a.attempt_number}: Math {a.raw_math}, Reading/Writing {a.raw_reading_writing}</p>)} /></div>}</Panel>{staff.includes(auth.role) ? <Panel title={editing ? 'Mock qoralamasini tahrirlash' : 'Mock yaratish'}><form onSubmit={create} className="space-y-3"><input className={input} required placeholder="Imtihon nomi" value={title} onChange={(e) => setTitle(e.target.value)} /><input className={input} type="datetime-local" value={deadline} onChange={(e) => setDeadline(e.target.value)}   /><QuestionPicker questions={questions} selected={selectedQs} setSelected={setSelectedQs} /><SelectionRules taxonomies={taxonomies} rules={selectionRules} setRules={setSelectionRules} /><fieldset className="space-y-2"><legend className="text-sm font-semibold">Guruhlar</legend><PaginatedItems items={groups} pageSize={5} render={(items) => items.map((g) => <label key={g.id} className="flex gap-2 text-sm"><input type="checkbox" checked={selectedGroups.includes(g.id)} onChange={(e) => setSelectedGroups(e.target.checked ? [...selectedGroups, g.id] : selectedGroups.filter((id) => id !== g.id))} />{g.name}</label>)} /></fieldset><textarea className={input} placeholder="Alohida o‘quvchilarning ichki user ID’lari (vergul yoki qator bilan)" value={studentIds} onChange={(e) => setStudentIds(e.target.value)} /><div className="flex gap-2"><button className={button}>{editing ? 'Sozlamalarni saqlash' : 'Qoralama saqlash'}</button>{editing && <button className={secondary} type="button" onClick={() => { setEditing(null);setTitle('');setSelectedQs([]);setSelectedGroups([]);  setStudentIds('');setSelectionRules([]);setDeadline('') }}>Bekor qilish</button>}</div></form></Panel> : opened && <Panel title={opened.title}><div className="space-y-4"><PaginatedItems items={items} pageSize={5} render={(pageItems, start) => pageItems.map((q, i) => <QuestionAnswer key={q.id} q={q} index={start + i} answers={answers} setAnswers={setAnswers} />)} />{result?.error && <p className="text-red-600">{result.error}</p>}{result?.score_label && <div className="rounded-xl bg-emerald-50 p-3">Raw score: Math {result.raw_math}, Reading/Writing {result.raw_reading_writing}. {result.score_label}</div>}<button onClick={submit} className={button}>Imtihonni topshirish</button></div></Panel>}</div>
 }
 
 function Lessons({ data, groups, auth, api, act }) {
