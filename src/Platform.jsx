@@ -89,7 +89,7 @@ function Platform({ auth, api, onLogout, onAuthUpdate }) {
 
   const nav = [
     ['home', 'Bosh sahifa'], ['groups', 'Guruhlar'], ['assignments', 'Vazifalar'], ['mocks', 'Mock imtihonlar'], ['lessons', 'Darslar'],
-    ...(staff.includes(auth.role) ? [['questions', 'Savollar banki'], ['posts', 'E’lonlar']] : []), ['resources', 'Resurslar'],
+    ...(staff.includes(auth.role) ? [['questions', 'Savollar banki']] : []), ['posts', 'E’lonlar'], ['resources', 'Resurslar'],
     ...(admin.includes(auth.role) ? [['taxonomy', 'Taksonomiya'], ['admin', 'Foydalanuvchilar'], ['audit', 'Audit'], ['calibration', 'IRT kalibratsiya']] : []),
     ...(auth.role === 'super_admin' ? [['settings', 'Ro‘yxat sozlamalari']] : []),
     ['profile', 'Profil'],
@@ -117,7 +117,7 @@ function Platform({ auth, api, onLogout, onAuthUpdate }) {
         {tab === 'assignments' && <Assignments data={pagedData} groups={groups} questions={questions} taxonomies={taxonomies} auth={auth} api={api} act={act} />}
         {tab === 'mocks' && <Mocks data={pagedData} groups={groups} questions={questions} taxonomies={taxonomies} auth={auth} api={api} act={act} />}
         {tab === 'lessons' && <Lessons data={pagedData} groups={groups} auth={auth} api={api} act={act} />}
-        {tab === 'posts' && <Posts data={pagedData} groups={groups} api={api} act={act} />}
+        {tab === 'posts' && <Posts data={pagedData} groups={groups} auth={auth} api={api} act={act} />}
         {tab === 'resources' && <Resources groups={groups} data={pagedData} auth={auth} api={api} act={act} />}
         {tab === 'taxonomy' && <Taxonomy data={pagedData} api={api} act={act} />}
         {tab === 'admin' && <Users data={pagedData} search={search} setSearch={setSearch} api={api} act={act} auth={auth} />}
@@ -516,10 +516,32 @@ function Lessons({ data, groups, auth, api, act }) {
   return <div className="grid gap-4 lg:grid-cols-2"><Panel title="Darslar">{data.length ? <div className="space-y-3">{data.map((l) => <article className="rounded-xl border p-4" key={l.id}><div className="flex justify-between gap-3"><div><p className="font-semibold">{l.title}</p><p className="text-sm text-slate-500">{l.group_name} · {l.status}</p><MathText className="mt-2 text-sm">{l.content}</MathText></div>{staff.includes(auth.role) && l.status === 'draft' && <div className="flex gap-2"><button className={secondary} onClick={() => { setEditing(l.id);setTitle(l.title);setGroup(l.group_id);setContent(l.content) }}>Tahrirlash</button><button className={button} onClick={() => act(() => api(`/api/lessons/${l.id}/publish`, { method: 'POST' }), 'Dars o‘quvchilarga ochildi.')}>E’lon</button></div>}</div></article>)}</div> : <Empty>Darslar yo‘q.</Empty>}</Panel>{staff.includes(auth.role) && <Panel title={editing ? 'Dars qoralamasini tahrirlash' : 'Dars yaratish'}><form className="space-y-3" onSubmit={create}><select className={input} required value={group} onChange={(e) => setGroup(e.target.value)}><option value="">Guruh</option>{groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}</select><input className={input} required placeholder="Dars nomi" value={title} onChange={(e) => setTitle(e.target.value)} /><MathEditor label="Dars mazmuni" rows={8} placeholder="Dars matni va LaTeX formulalari" value={content} onChange={setContent} /><div className="flex gap-2"><button className={button}>{editing ? 'Saqlash' : 'Qoralama saqlash'}</button>{editing && <button type="button" className={secondary} onClick={() => { setEditing(null);setTitle('');setContent('');setGroup('') }}>Bekor qilish</button>}</div></form></Panel>}</div>
 }
 
-function Posts({ data, groups, api, act }) {
+function Posts({ data, groups, auth, api, act }) {
   const [group, setGroup] = useState(''); const [body, setBody] = useState('')
   const create = (e) => { e.preventDefault(); act(() => api('/api/posts', { method: 'POST', body: JSON.stringify({ group_id: group, body }) }), 'E’lon joylandi.') }
-  return <div className="grid gap-4 lg:grid-cols-2"><Panel title="Guruh e’lonlari">{data.length ? data.map((p) => <article className="mb-3 rounded-xl border p-4" key={p.id}><p className="text-xs text-slate-500">{p.group_name} · {new Date(p.created_at).toLocaleString()}</p><MathText className="mt-2">{p.body}</MathText></article>) : <Empty>E’lonlar yo‘q.</Empty>}</Panel><Panel title="E’lon yozish"><form className="space-y-3" onSubmit={create}><select className={input} required value={group} onChange={(e) => setGroup(e.target.value)}><option value="">Guruh</option>{groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}</select><MathEditor required label="E’lon matni" placeholder="Matn va kerak bo'lsa LaTeX formulasi" value={body} onChange={setBody} rows={5} /><button className={button}>E’lon qilish</button></form></Panel></div>
+  return (
+    <div className="grid gap-4 lg:grid-cols-2">
+      <Panel title="Guruh e’lonlari">
+        {data.length ? data.map((p) => (
+          <article className="mb-3 rounded-xl border p-4" key={p.id}>
+            <p className="text-xs text-slate-500">{p.group_name} · {new Date(p.created_at).toLocaleString()}</p>
+            <MathText className="mt-2">{p.body}</MathText>
+          </article>
+        )) : <Empty>E’lonlar yo‘q.</Empty>}
+      </Panel>
+      {staff.includes(auth.role) && (
+        <Panel title="E’lon yozish">
+          <form className="space-y-3" onSubmit={create}>
+            <select className={input} required value={group} onChange={(e) => setGroup(e.target.value)}>
+              <option value="">Guruh</option>{groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+            </select>
+            <MathEditor required label="E’lon matni" placeholder="Matn va kerak bo'lsa LaTeX formulasi" value={body} onChange={setBody} rows={5} />
+            <button className={button}>E’lon qilish</button>
+          </form>
+        </Panel>
+      )}
+    </div>
+  )
 }
 
 function Resources({ groups, data, auth, api, act }) {
