@@ -11,14 +11,19 @@ const API_URL = (
 async function api(path, options = {}) {
   const token = localStorage.getItem('session_token')
   const isForm = typeof FormData !== 'undefined' && options.body instanceof FormData
-  const response = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers: {
-      ...(!isForm ? { 'Content-Type': 'application/json' } : {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...options.headers,
-    },
-  })
+  let response
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      ...options,
+      headers: {
+        ...(!isForm ? { 'Content-Type': 'application/json' } : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...options.headers,
+      },
+    })
+  } catch {
+    throw new Error(`Backendga ulanib bo‘lmadi: ${API_URL || window.location.origin}${path}. Backend holati va CORS domenini tekshiring.`)
+  }
 
   const text = await response.text()
   let data = {}

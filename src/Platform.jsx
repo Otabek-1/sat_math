@@ -49,7 +49,11 @@ function Platform({ auth, api, onLogout, onAuthUpdate }) {
       if (nextTab === 'settings') result = await api('/api/admin/settings')
       if (nextTab === 'calibration') result = await api('/api/admin/calibrations')
       if (['groups', 'assignments', 'mocks', 'questions', 'lessons', 'resources', 'posts'].includes(nextTab)) {
-        const [groupRows, questionRows] = await Promise.all([api('/api/groups'), staff.includes(auth.role) ? api('/api/questions') : Promise.resolve([])])
+        const needsQuestionOptions = staff.includes(auth.role) && ['assignments', 'mocks'].includes(nextTab)
+        const [groupRows, questionRows] = await Promise.all([
+          api('/api/groups'),
+          nextTab === 'questions' ? Promise.resolve(result) : needsQuestionOptions ? api('/api/questions') : Promise.resolve([]),
+        ])
         setGroups(groupRows)
         setQuestions(questionRows)
       }
