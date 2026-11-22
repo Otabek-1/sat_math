@@ -145,7 +145,159 @@ function Groups({ data, groups, api, auth, act }) {
   const addStudent = () => act(async () => { await api(`/api/groups/${selected}/members`, { method: 'POST', body: JSON.stringify({ student_id: student.student_id }) }); setStudent(null); setMembers(await api(`/api/groups/${selected}/members`)) }, 'O‘quvchi guruhga qo‘shildi.')
   const assignTeacher = () => act(async () => { await api(`/api/groups/${selected}/teachers`, { method: 'POST', body: JSON.stringify({ teacher_id: teacherId }) }); setTeachers(await api(`/api/groups/${selected}/teachers`)) }, 'O‘qituvchi guruhga tayinlandi.')
   const removeStudent = (sid) => act(async () => { await api(`/api/groups/${selected}/members/${encodeURIComponent(sid)}`, { method: 'DELETE' }); setMembers(await api(`/api/groups/${selected}/members`)) }, 'O‘quvchi guruhdan chiqarildi.')
-  return <div className="grid gap-4 lg:grid-cols-2"><Panel title="Guruhlar">{data.length ? <div className="space-y-2">{data.map((g) => <div className={`flex items-center justify-between rounded-xl border p-3 ${selected === g.id ? 'border-indigo-400 bg-indigo-50' : ''}`} key={g.id}><div><p className="font-semibold">{g.name}</p><p className="text-xs text-slate-500">{g.student_count} o‘quvchi · </p><MathText className="text-xs text-slate-500">{g.description}</MathText></div><button className={secondary} onClick={() => setSelected(g.id)}>Tanlash</button></div>)}</div> : <Empty>Guruhlar topilmadi.</Empty>}</Panel>{auth.role === 'student' && selected && <Panel title="Guruh a’zolari">{members.length ? <PaginatedItems items={members} render={(items) => items.map((m) => <p key={m.id} className="border-b py-2 text-sm">{m.first_name} | {m.student_id}</p>)} /> : <Empty>Guruhda hozircha o‘quvchi yo‘q.</Empty>}</Panel>}{staff.includes(auth.role) && <><Panel title="Guruhni boshqarish"><div className="space-y-3"><select className={input} value={selected} onChange={(e) => setSelected(e.target.value)}><option value="">Guruhni tanlang</option>{groups.map((g) => <option value={g.id} key={g.id}>{g.name}</option>)}</select>{selected && <><input className={input} value={editName} onChange={(e) => setEditName(e.target.value)} aria-label="Guruh nomi" /><textarea className={input} value={editDescription} onChange={(e) => setEditDescription(e.target.value)} aria-label="Tavsif" /><button className={button} onClick={saveGroup}>Guruhni saqlash</button><div><h3 className="mb-2 font-semibold">O‘quvchilar ({members.length})</h3>{members.length ? <PaginatedItems items={members} render={(items) => items.map((m) => <div key={m.id} className="flex items-center justify-between border-t py-2 text-sm"><span>{m.first_name} | {m.student_id}</span><button className="text-red-600" onClick={() => removeStudent(m.student_id)}>Chiqarish</button></div>)} /> : <Empty>Guruhda o‘quvchi yo‘q.</Empty>}</div>{admin.includes(auth.role) && <div><h3 className="mb-2 font-semibold">O‘qituvchilar</h3><PaginatedItems items={teachers} pageSize={5} render={(items) => items.map((t) => <p className="text-sm" key={t.id}>{t.first_name || t.email}</p>)} /><div className="mt-2 flex gap-2"><select className={input} value={teacherId} onChange={(e) => setTeacherId(e.target.value)}><option value="">O‘qituvchi tanlang</option>{teacherOptions.filter((t) => !teachers.some((assigned) => assigned.id === t.id)).map((t) => <option key={t.id} value={t.id}>{t.first_name || t.email} · {t.email}</option>)}</select><button className={button} disabled={!teacherId} onClick={assignTeacher}>Tayinlash</button></div></div>}</>}</div></Panel><Panel title="Yangi guruh"><form onSubmit={create} className="space-y-3"><input className={input} placeholder="Guruh nomi" required value={name} onChange={(e) => setName(e.target.value)} /><MathEditor label="Tavsif" placeholder="Matn yoki LaTeX formulasi" value={description} onChange={setDescription} rows={3} />{admin.includes(auth.role) && <fieldset className="max-h-32 space-y-1 overflow-auto rounded-xl border p-2"><legend className="px-1 text-xs">O‘qituvchilar</legend><PaginatedItems items={teacherOptions} pageSize={10} render={(items) => items.map((t) => <label className="flex gap-2 text-sm" key={t.id}><input type="checkbox" checked={createTeacherIds.includes(t.id)} onChange={(e) => setCreateTeacherIds(e.target.checked ? [...createTeacherIds,t.id] : createTeacherIds.filter((id) => id !== t.id))} />{t.first_name || t.email} · {t.email}</label>)}</fieldset>}<button className={button}>Yaratish</button></form></Panel><Panel title="O‘quvchini guruhga qo‘shish"><div className="space-y-3"><select className={input} value={selected} onChange={(e) => setSelected(e.target.value)}><option value="">Guruhni tanlang</option>{groups.map((g) => <option value={g.id} key={g.id}>{g.name}</option>)}</select><div className="flex gap-2"><input className={input} placeholder="Student ID" value={studentId} onChange={(e) => setStudentId(e.target.value)} /><button className={secondary} onClick={find} disabled={!selected}>Qidirish</button></div>{student && <div className="rounded-xl bg-slate-50 p-3"><p className="font-medium">{student.first_name} · {student.student_id}</p><button className={`${button} mt-3`} onClick={addStudent}>Guruhga qo‘shish</button></div>}</div></Panel></>}</div>
+  return (
+    <div className="grid gap-4 lg:grid-cols-2">
+      <Panel title="Guruhlar">
+        {data.length ? (
+          <div className="space-y-2">
+            {data.map((g) => (
+              <div
+                className={`flex items-center justify-between rounded-xl border p-3 ${selected === g.id ? 'border-indigo-400 bg-indigo-50' : ''}`}
+                key={g.id}
+              >
+                <div>
+                  <p className="font-semibold">{g.name}</p>
+                  <p className="text-xs text-slate-500">{g.student_count} o‘quvchi · </p>
+                  <MathText className="text-xs text-slate-500">{g.description}</MathText>
+                </div>
+                <button className={secondary} onClick={() => setSelected(g.id)}>Tanlash</button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <Empty>Guruhlar topilmadi.</Empty>
+        )}
+      </Panel>
+
+      {auth.role === 'student' && selected && (
+        <Panel title="Guruh a’zolari">
+          {members.length ? (
+            <PaginatedItems
+              items={members}
+              render={(items) => items.map((m) => (
+                <p key={m.id} className="border-b py-2 text-sm">
+                  {m.first_name} | {m.student_id}
+                </p>
+              ))}
+            />
+          ) : (
+            <Empty>Guruhda hozircha o‘quvchi yo‘q.</Empty>
+          )}
+        </Panel>
+      )}
+
+      {staff.includes(auth.role) && (
+        <>
+          <Panel title="Guruhni boshqarish">
+            <div className="space-y-3">
+              <select className={input} value={selected} onChange={(e) => setSelected(e.target.value)}>
+                <option value="">Guruhni tanlang</option>
+                {groups.map((g) => <option value={g.id} key={g.id}>{g.name}</option>)}
+              </select>
+              {selected && (
+                <>
+                  <input className={input} value={editName} onChange={(e) => setEditName(e.target.value)} aria-label="Guruh nomi" />
+                  <textarea className={input} value={editDescription} onChange={(e) => setEditDescription(e.target.value)} aria-label="Tavsif" />
+                  <button className={button} onClick={saveGroup}>Guruhni saqlash</button>
+                  <div>
+                    <h3 className="mb-2 font-semibold">O‘quvchilar ({members.length})</h3>
+                    {members.length ? (
+                      <PaginatedItems
+                        items={members}
+                        render={(items) => items.map((m) => (
+                          <div key={m.id} className="flex items-center justify-between border-t py-2 text-sm">
+                            <span>{m.first_name} | {m.student_id}</span>
+                            <button className="text-red-600" onClick={() => removeStudent(m.student_id)}>Chiqarish</button>
+                          </div>
+                        ))}
+                      />
+                    ) : (
+                      <Empty>Guruhda o‘quvchi yo‘q.</Empty>
+                    )}
+                  </div>
+                  {admin.includes(auth.role) && (
+                    <div>
+                      <h3 className="mb-2 font-semibold">O‘qituvchilar</h3>
+                      <PaginatedItems
+                        items={teachers}
+                        pageSize={5}
+                        render={(items) => items.map((t) => (
+                          <p className="text-sm" key={t.id}>{t.first_name || t.email}</p>
+                        ))}
+                      />
+                      <div className="mt-2 flex gap-2">
+                        <select className={input} value={teacherId} onChange={(e) => setTeacherId(e.target.value)}>
+                          <option value="">O‘qituvchi tanlang</option>
+                          {teacherOptions
+                            .filter((t) => !teachers.some((assigned) => assigned.id === t.id))
+                            .map((t) => (
+                              <option key={t.id} value={t.id}>
+                                {t.first_name || t.email} · {t.email}
+                              </option>
+                            ))}
+                        </select>
+                        <button className={button} disabled={!teacherId} onClick={assignTeacher}>Tayinlash</button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </Panel>
+
+          <Panel title="Yangi guruh">
+            <form onSubmit={create} className="space-y-3">
+              <input className={input} placeholder="Guruh nomi" required value={name} onChange={(e) => setName(e.target.value)} />
+              <MathEditor label="Tavsif" placeholder="Matn yoki LaTeX formulasi" value={description} onChange={setDescription} rows={3} />
+              {admin.includes(auth.role) && (
+                <fieldset className="max-h-32 space-y-1 overflow-auto rounded-xl border p-2">
+                  <legend className="px-1 text-xs">O‘qituvchilar</legend>
+                  <PaginatedItems
+                    items={teacherOptions}
+                    pageSize={10}
+                    render={(items) => items.map((t) => (
+                      <label className="flex gap-2 text-sm" key={t.id}>
+                        <input
+                          type="checkbox"
+                          checked={createTeacherIds.includes(t.id)}
+                          onChange={(e) => setCreateTeacherIds(
+                            e.target.checked
+                              ? [...createTeacherIds, t.id]
+                              : createTeacherIds.filter((id) => id !== t.id),
+                          )}
+                        />
+                        {t.first_name || t.email} · {t.email}
+                      </label>
+                    ))}
+                  />
+                </fieldset>
+              )}
+              <button className={button}>Yaratish</button>
+            </form>
+          </Panel>
+
+          <Panel title="O‘quvchini guruhga qo‘shish">
+            <div className="space-y-3">
+              <select className={input} value={selected} onChange={(e) => setSelected(e.target.value)}>
+                <option value="">Guruhni tanlang</option>
+                {groups.map((g) => <option value={g.id} key={g.id}>{g.name}</option>)}
+              </select>
+              <div className="flex gap-2">
+                <input className={input} placeholder="Student ID" value={studentId} onChange={(e) => setStudentId(e.target.value)} />
+                <button className={secondary} onClick={find} disabled={!selected}>Qidirish</button>
+              </div>
+              {student && (
+                <div className="rounded-xl bg-slate-50 p-3">
+                  <p className="font-medium">{student.first_name} · {student.student_id}</p>
+                  <button className={`${button} mt-3`} onClick={addStudent}>Guruhga qo‘shish</button>
+                </div>
+              )}
+            </div>
+          </Panel>
+        </>
+      )}
+    </div>
+  )
 }
 
 function Questions({ data, totalCount, taxonomies, api, act }) {
